@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { Send, Save, Download, Eye, Globe, Monitor, Tablet, Smartphone } from 'lucide-react'
+import { Send, Save, Download, Eye, Globe, Monitor, Tablet, Smartphone, Code, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { editorScript } from '../editorScript'
 
@@ -12,10 +12,14 @@ const previewBlockerScript = `
     if (link) {
       e.preventDefault();
       const href = link.getAttribute('href');
-      if (href && href.startsWith('#')) {
-        const target = document.querySelector(href);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth' });
+      if (href && href.length > 1 && href.startsWith('#')) {
+        try {
+          const target = document.querySelector(href);
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth' });
+          }
+        } catch (err) {
+          console.log('Invalid selector:', href);
         }
       }
     }
@@ -49,6 +53,7 @@ function EditorPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [projectId, setProjectId] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [showCode, setShowCode] = useState(false)
 
   useEffect(() => {
     if (savedCode) {
@@ -77,39 +82,42 @@ function EditorPage() {
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
-  const handleSend = async () => {
-    if (!input.trim()) return
+const handleSend = async () => {
+  if (!input.trim()) return
 
-    const userMessage = { role: 'user', content: input }
-    setMessages(prev => [...prev, userMessage])
-    const currentPrompt = input
-    setInput('')
-    setIsGenerating(true)
+  const userMessage = { role: 'user', content: input }
+  setMessages(prev => [...prev, userMessage])
+  const currentPrompt = input
+  setInput('')
+  setIsGenerating(true)
 
-    try {
-      const response = await axios.post('http://localhost:5000/api/generate', {
-        prompt: currentPrompt
-      })
+  try {
+    const response = await axios.post('http://localhost:5000/api/generate', {
+      prompt: currentPrompt,
+      existingCode: generatedCode || null
+    })
 
-      setGeneratedCode(response.data.code)
+    setGeneratedCode(response.data.code)
 
-      const aiMessage = {
-        role: 'assistant',
-        content: 'I have created your website! You can now preview it and request any changes.'
-      }
-      setMessages(prev => [...prev, aiMessage])
-
-    } catch (error) {
-      console.error(error)
-      const errorMessage = {
-        role: 'assistant',
-        content: 'Sorry, something went wrong while generating your website. Please try again!'
-      }
-      setMessages(prev => [...prev, errorMessage])
+    const aiMessage = {
+      role: 'assistant',
+      content: generatedCode 
+        ? 'I have updated your website with the requested changes!'
+        : 'I have created your website! You can now preview it and request any changes.'
     }
+    setMessages(prev => [...prev, aiMessage])
 
-    setIsGenerating(false)
+  } catch (error) {
+    console.error(error)
+    const errorMessage = {
+      role: 'assistant',
+      content: 'Sorry, something went wrong. Please try again!'
+    }
+    setMessages(prev => [...prev, errorMessage])
   }
+
+  setIsGenerating(false)
+}
 
   const handleSave = async () => {
     if (!token) {
@@ -252,6 +260,16 @@ function EditorPage() {
           </button>
 
           <button
+            onClick={() => setShowCode(!showCode)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm ${
+              showCode ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}
+          >
+            <Code className="w-4 h-4" />
+            View Code
+          </button>
+
+          <button
             onClick={() => handleDeviceChange('desktop')}
             className={`p-2 rounded-lg transition ${device === 'desktop' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
           >
@@ -355,7 +373,7 @@ function EditorPage() {
 
         </div>
 
-        {/* RIGHT SIDE - Preview */}
+        {/* MIDDLE - Preview */}
         <div className="flex-1 bg-gray-950 flex items-center justify-center overflow-auto">
           {generatedCode ? (
             <div className={`${getDeviceWidth()} h-full transition-all duration-300`}>
@@ -375,6 +393,24 @@ function EditorPage() {
             </div>
           )}
         </div>
+
+        {/* RIGHT - Code Panel */}
+        {showCode && (
+          <div className="w-[500px] bg-gray-900 border-l border-gray-800 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <h3 className="text-white text-sm font-medium">Source Code</h3>
+              <button
+                onClick={() => setShowCode(false)}
+                className="text-gray-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto p-4 text-xs text-gray-300 whitespace-pre-wrap">
+              <code>{generatedCode || 'No code generated yet'}</code>
+            </pre>
+          </div>
+        )}
 
       </div>
     </div>

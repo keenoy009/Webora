@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
-import { Plus, Globe, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
@@ -68,14 +68,18 @@ function ProjectsPage() {
               >
                 <div
                   onClick={() => navigate('/editor', { state: { projectId: project._id, prompt: project.prompt, code: project.code } })}
-                  className="h-40 bg-gray-800 flex items-center justify-center"
+                  className="h-40 bg-gray-800 overflow-hidden relative"
                 >
-                  <Globe className="w-10 h-10 text-gray-600" />
+                  <iframe
+                    srcDoc={project.code}
+                    className="w-[400%] h-[400%] scale-[0.25] origin-top-left pointer-events-none"
+                    title={project.title}
+                  />
                 </div>
 
                 <div className="p-4">
-                  <h3 className="text-white font-medium mb-1">{project.title}</h3>
-                  <p className="text-gray-500 text-sm mb-3 truncate">{project.prompt}</p>
+                  <h3 className="text-white font-medium mb-1 capitalize">{project.title}</h3>
+                  
 
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 text-xs">

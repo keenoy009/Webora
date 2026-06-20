@@ -18,9 +18,7 @@ function Home() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
 
-        <div className="bg-blue-600 text-white text-xs px-4 py-1 rounded-full mb-6">
-          NEW — Try 15 free credits on signup!
-        </div>
+        
 
         <h1 className="text-6xl font-bold text-white leading-tight mb-4">
           Turn thoughts into
@@ -34,11 +32,17 @@ function Home() {
 
         <div className="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl p-4">
           <textarea
-            className="w-full bg-transparent text-white placeholder-gray-500 outline-none resize-none text-sm h-28"
-            placeholder="Describe your website in detail..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
+  className="w-full bg-transparent text-white placeholder-gray-500 outline-none resize-none text-sm h-28"
+  placeholder="Describe your website in detail..."
+  value={prompt}
+  onChange={(e) => setPrompt(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleGenerate()
+    }
+  }}
+/>
           <div className="flex justify-end mt-2">
             <button
               onClick={handleGenerate}

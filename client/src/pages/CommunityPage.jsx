@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
-import { Globe } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
@@ -43,19 +42,23 @@ function CommunityPage() {
                 onClick={() => navigate('/editor', { state: { code: project.code, prompt: project.prompt } })}
                 className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-blue-500 transition cursor-pointer"
               >
-                <div className="h-40 bg-gray-800 flex items-center justify-center">
-                  <Globe className="w-10 h-10 text-gray-600" />
+                <div className="h-40 bg-gray-800 overflow-hidden relative">
+                  <iframe
+                    srcDoc={project.code}
+                    className="w-[400%] h-[400%] scale-[0.25] origin-top-left pointer-events-none"
+                    title={project.title}
+                  />
                 </div>
 
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-white font-medium text-sm">{project.title}</h3>
+                    <h3 className="text-white font-medium text-sm capitalize">{project.title}</h3>
                     <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
                       Website
                     </span>
                   </div>
 
-                  <p className="text-gray-500 text-xs mb-3 truncate">{project.prompt}</p>
+                 
 
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 text-xs">
