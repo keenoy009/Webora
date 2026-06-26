@@ -1,7 +1,7 @@
 const OpenAI = require('openai')
 
 const generateWebsite = async (req, res) => {
-  const { prompt, existingCode } = req.body
+  const { prompt, existingCode, images } = req.body
 
   if (!prompt) {
     return res.status(400).json({ message: 'Prompt is required' })
@@ -19,10 +19,13 @@ STRICT RULES:
 - Never return explanations or markdown
 - Always use Tailwind CSS via CDN
 - Always use Google Fonts
-- Always make it fully responsive
 - Use modern design with gradients and glassmorphism
 - Include smooth animations and hover effects
-- Never truncate or cut off the code`
+- Never truncate or cut off the code
+- For ALL images, ONLY use https://images.unsplash.com URLs with proper query parameters like ?q=80&w=1000&auto=format&fit=crop, OR use https://picsum.photos/WIDTH/HEIGHT for generic placeholders
+- Never invent or guess image URLs that may not exist
+- CRITICAL RESPONSIVE RULE: For ALL large headings, ALWAYS use responsive Tailwind text size classes that scale down on smaller screens. Example: instead of "text-8xl" alone, use "text-3xl sm:text-5xl md:text-7xl lg:text-8xl". Never use a single large fixed text size without smaller breakpoint variants.
+- Apply the same responsive scaling pattern to padding, margins, and grid columns (e.g. "grid-cols-1 md:grid-cols-3" not just "grid-cols-3")`
 
     let userPrompt
 
@@ -42,6 +45,13 @@ Now apply this change: ${prompt}
 Return the complete updated HTML code with this change applied.`
     } else {
       userPrompt = `Create a complete stunning website for: ${prompt}. Return ONLY complete HTML code.`
+    }
+
+    if (images && images.length > 0) {
+      userPrompt += `
+
+The user has uploaded these images, use them as actual <img> src values in the website where appropriate:
+${images.map((img, i) => `Image ${i + 1} (${img.name}): ${img.url}`).join('\n')}`
     }
 
     const completion = await client.chat.completions.create({

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
-import { Send, Save, Download, Eye, Globe, Monitor, Tablet, Smartphone, Code, X } from 'lucide-react'
+import { Send, Save, Download, Eye, Globe, Monitor, Tablet, Smartphone, Code, X, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { editorScript } from '../editorScript'
 
@@ -37,7 +37,7 @@ function EditorPage() {
   const savedCode = location.state?.code || ''
   const savedProjectId = location.state?.projectId || null
   
-  const { token } = useAuth()
+  const { token, refreshUser } = useAuth()
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState([
@@ -54,6 +54,13 @@ function EditorPage() {
   const [projectId, setProjectId] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [showCode, setShowCode] = useState(false)
+  const [websiteTitle, setWebsiteTitle] = useState('My Website')
+  const [websiteDescription, setWebsiteDescription] = useState('A custom website')
+  const [uploadedImages, setUploadedImages] = useState([])
+  const [draftLoaded, setDraftLoaded] = useState(false)
+
+  const [history, setHistory] = useState([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
 
   useEffect(() => {
     if (savedCode) {
@@ -65,59 +72,145 @@ function EditorPage() {
           content: 'Welcome back! Here is your saved website.'
         }
       ])
+      setHistory([savedCode])
+      setHistoryIndex(0)
+      setDraftLoaded(true)
     } else if (initialPrompt) {
       setInput(initialPrompt)
+      setDraftLoaded(true)
+    } else {
+      const cached = localStorage.getItem('webora_draft')
+      if (cached) {
+        try {
+          const draft = JSON.parse(cached)
+          setGeneratedCode(draft.code || '')
+          setMessages(draft.messages || [{ role: 'assistant', content: 'Hi! Describe your website and I will generate it for you!' }])
+          setWebsiteTitle(draft.title || 'My Website')
+          setWebsiteDescription(draft.description || 'A custom website')
+          setProjectId(draft.projectId || null)
+          setHistory(draft.code ? [draft.code] : [])
+          setHistoryIndex(draft.code ? 0 : -1)
+        } catch (err) {
+          console.log('No valid draft found')
+        }
+      }
+      setDraftLoaded(true)
     }
   }, [])
 
   useEffect(() => {
     const handleMessage = (event) => {
       if (event.data.type === 'CONTENT_UPDATED') {
-        setGeneratedCode(event.data.html)
+        pushToHistory(event.data.html)
       }
     }
 
     window.addEventListener('message', handleMessage)
 
     return () => window.removeEventListener('message', handleMessage)
-  }, [])
+  }, [history, historyIndex])
 
-const handleSend = async () => {
-  if (!input.trim()) return
+  useEffect(() => {
+    if (draftLoaded && generatedCode) {
+      localStorage.setItem('webora_draft', JSON.stringify({
+        code: generatedCode,
+        messages,
+        title: websiteTitle,
+        description: websiteDescription,
+        projectId
+      }))
+    }
+  }, [generatedCode, messages, websiteTitle, websiteDescription, projectId, draftLoaded])
 
-  const userMessage = { role: 'user', content: input }
-  setMessages(prev => [...prev, userMessage])
-  const currentPrompt = input
-  setInput('')
-  setIsGenerating(true)
-
-  try {
-    const response = await axios.post('http://localhost:5000/api/generate', {
-      prompt: currentPrompt,
-      existingCode: generatedCode || null
+  const pushToHistory = (newCode) => {
+    setGeneratedCode(newCode)
+    setHistory(prev => {
+      const trimmed = prev.slice(0, historyIndex + 1)
+      return [...trimmed, newCode]
     })
-
-    setGeneratedCode(response.data.code)
-
-    const aiMessage = {
-      role: 'assistant',
-      content: generatedCode 
-        ? 'I have updated your website with the requested changes!'
-        : 'I have created your website! You can now preview it and request any changes.'
-    }
-    setMessages(prev => [...prev, aiMessage])
-
-  } catch (error) {
-    console.error(error)
-    const errorMessage = {
-      role: 'assistant',
-      content: 'Sorry, something went wrong. Please try again!'
-    }
-    setMessages(prev => [...prev, errorMessage])
+    setHistoryIndex(prev => prev + 1)
   }
 
-  setIsGenerating(false)
-}
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1
+      setHistoryIndex(newIndex)
+      setGeneratedCode(history[newIndex])
+    }
+  }
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1
+      setHistoryIndex(newIndex)
+      setGeneratedCode(history[newIndex])
+    }
+  }
+
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files)
+    
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setUploadedImages(prev => [...prev, { name: file.name, url: reader.result }])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const removeImage = (index) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSend = () => {
+    if (!input.trim()) return
+
+    if (!token) {
+      navigate('/auth')
+      return
+    }
+
+    const userMessage = { role: 'user', content: input }
+    setMessages(prev => [...prev, userMessage])
+    const currentPrompt = input
+    setInput('')
+    setIsGenerating(true)
+
+    axios.post('http://localhost:5000/api/generate', {
+      prompt: currentPrompt,
+      existingCode: generatedCode || null,
+      images: uploadedImages
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((response) => {
+        pushToHistory(response.data.code)
+
+        if (response.data.title) {
+          setWebsiteTitle(response.data.title)
+        }
+        if (response.data.description) {
+          setWebsiteDescription(response.data.description)
+        }
+
+        const aiMessage = {
+          role: 'assistant',
+          content: generatedCode 
+            ? 'I have updated your website with the requested changes!'
+            : 'I have created your website! You can now preview it and request any changes.'
+        }
+        setMessages(prev => [...prev, aiMessage])
+        setIsGenerating(false)
+        refreshUser()
+      })
+      .catch((error) => {
+        console.error(error)
+        const errorMsg = error.response?.data?.message || 'Sorry, something went wrong. Please try again!'
+        setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }])
+        setIsGenerating(false)
+      })
+  }
 
   const handleSave = async () => {
     if (!token) {
@@ -136,19 +229,20 @@ const handleSend = async () => {
       if (projectId) {
         await axios.put(
           `http://localhost:5000/api/projects/${projectId}`,
-          { code: generatedCode, prompt: initialPrompt },
+          { code: generatedCode, prompt: websiteDescription },
           { headers: { Authorization: `Bearer ${token}` } }
         )
       } else {
         const response = await axios.post(
           'http://localhost:5000/api/projects',
-          { title: initialPrompt.slice(0, 50), prompt: initialPrompt, code: generatedCode },
+          { title: websiteTitle, prompt: websiteDescription, code: generatedCode },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         setProjectId(response.data._id)
       }
 
       alert('Project saved successfully!')
+      localStorage.removeItem('webora_draft')
 
     } catch (error) {
       console.error(error)
@@ -240,11 +334,22 @@ const handleSend = async () => {
       <div className="flex items-center justify-between px-6 py-3 bg-gray-900 border-b border-gray-800">
         
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+          <Link 
+            to="/" 
+            onClick={(e) => {
+              if (isGenerating) {
+                const confirmLeave = window.confirm('Your website is still generating. If you leave now, you may lose this generation. Continue anyway?')
+                if (!confirmLeave) {
+                  e.preventDefault()
+                }
+              }
+            }}
+            className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+          >
             W
-          </div>
+          </Link>
           <div>
-            <p className="text-white text-sm font-medium">My Website</p>
+            <p className="text-white text-sm font-medium capitalize">{websiteTitle}</p>
             <p className="text-gray-500 text-xs">Previewing last saved version</p>
           </div>
         </div>
@@ -257,6 +362,21 @@ const handleSend = async () => {
             }`}
           >
             {isEditMode ? 'Editing ON' : 'Edit Mode'}
+          </button>
+
+          <button
+            onClick={handleUndo}
+            disabled={historyIndex <= 0}
+            className="p-2 rounded-lg transition text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={historyIndex >= history.length - 1}
+            className="p-2 rounded-lg transition text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Redo2 className="w-4 h-4" />
           </button>
 
           <button
@@ -353,13 +473,39 @@ const handleSend = async () => {
             )}
           </div>
 
+          {uploadedImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-4 pb-2">
+              {uploadedImages.map((img, i) => (
+                <div key={i} className="relative">
+                  <img src={img.url} className="w-12 h-12 rounded object-cover" />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="p-4 border-t border-gray-800">
             <div className="flex items-center gap-2 bg-gray-800 rounded-xl px-3 py-2">
+              <label className="cursor-pointer text-gray-400 hover:text-white transition">
+                <ImagePlus className="w-4 h-4" />
+                <input type="file" accept="image/*" multiple hidden onChange={handleImageUpload} />
+              </label>
               <textarea
                 className="flex-1 bg-transparent text-white text-sm outline-none resize-none placeholder-gray-500"
                 placeholder="Describe your website or request changes..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSend()
+                  }
+                }}
                 rows={2}
               />
               <button

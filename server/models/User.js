@@ -1,15 +1,14 @@
 const mongoose = require('mongoose')
 
-// This defines how a user looks in our database
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true // name is compulsory
+    required: true
   },
   email: {
     type: String,
     required: true,
-    unique: true // no two users can have same email
+    unique: true
   },
   password: {
     type: String,
@@ -17,10 +16,10 @@ const userSchema = new mongoose.Schema({
   },
   credits: {
     type: Number,
-    default: 15 // every new user gets 15 free credits
+    default: 15
   }
 }, { 
-  timestamps: true // automatically adds createdAt and updatedAt
+  timestamps: true
 })
 
 module.exports = mongoose.model('User', userSchema)

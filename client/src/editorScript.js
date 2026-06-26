@@ -30,13 +30,19 @@ export const editorScript = `
       e.target.style.outline = 'none';
       e.target.removeAttribute('contenteditable');
 
-      const clone = document.documentElement.cloneNode(true);
-      const scriptTags = clone.querySelectorAll('script[data-editor-script]');
-      scriptTags.forEach(s => s.remove());
-
       window.parent.postMessage({
         type: 'CONTENT_UPDATED',
-        html: '<!DOCTYPE html>' + clone.outerHTML
+        html: '<!DOCTYPE html>' + (function() {
+          const clone = document.documentElement.cloneNode(true);
+          const scriptTags = clone.querySelectorAll('script[data-editor-script]');
+          scriptTags.forEach(s => s.remove());
+          const editableEls = clone.querySelectorAll('[contenteditable]');
+          editableEls.forEach(el => {
+            el.removeAttribute('contenteditable');
+            el.style.outline = '';
+          });
+          return clone.outerHTML;
+        })()
       }, '*');
     }
   }, true);

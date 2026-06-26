@@ -1,4 +1,5 @@
 import { createContext, useState, useContext } from 'react'
+import axios from 'axios'
 
 const AuthContext = createContext()
 
@@ -26,8 +27,23 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('webora_token')
   }
 
+  const refreshUser = async () => {
+    const currentToken = localStorage.getItem('webora_token')
+    if (!currentToken) return
+
+    try {
+      const response = await axios.get('http://localhost:5000/api/auth/me', {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      })
+      setUser(response.data)
+      localStorage.setItem('webora_user', JSON.stringify(response.data))
+    } catch (error) {
+      console.error('Failed to refresh user:', error)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
