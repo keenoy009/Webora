@@ -64,3 +64,5 @@ npm run dev
 ## License
 
 This project is for educational purposes.
+
+## Testing webhook integration
